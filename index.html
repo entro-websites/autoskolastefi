@@ -302,7 +302,7 @@
   .put-car .wheel.w2{left:71.9%;}
   .put-progress{display:flex;gap:8px;margin-top:24px;}
   .put-progress i{flex:1;height:4px;border-radius:4px;background:var(--border);position:relative;overflow:hidden;}
-  .put-progress i::after{content:"";position:absolute;inset:0;background:var(--red);transform:scaleX(var(--f,0));transform-origin:left;transition:transform .2s;}
+  .put-progress i::after{content:"";position:absolute;inset:0;background:var(--red);transform:scaleX(var(--f,0));transform-origin:left;}
   /* desktop: pin */
   @media (min-width:992px){
     .put.pinned{height:var(--put-h,320vh);}
@@ -1027,24 +1027,31 @@
     }
     updatePut();
   }
+  var bar = document.getElementById('putProgress');
   function updatePut(){
     ticking = false;
     if (!desktop.matches) return;
     var r = put.getBoundingClientRect(), total = put.offsetHeight - window.innerHeight;
-    var p = total > 0 ? Math.min(Math.max(-r.top / total, 0), 1) : 0;
+    var raw = total > 0 ? Math.min(Math.max(-r.top / total, 0), 1) : 0;
+    // kratka pauza na početku i na kraju, da se prvi i poslednji korak vide
+    var p = Math.min(Math.max((raw - 0.04) / 0.9, 0), 1);
     var x = -p * dist;
     track.style.transform = 'translateX(' + x + 'px)';
     road.style.setProperty('--roadx', x + 'px');
-    var wheelD = car.offsetWidth * 0.165;
-    var rot = (-x) / (Math.PI * wheelD) * 360;
+    // auto vozi duž linija napretka, od prve do poslednje
+    var br = bar.getBoundingClientRect(), cw = car.offsetWidth;
+    var travel = p * Math.max(br.width - cw, 0);
+    car.style.transform = 'translateX(' + travel + 'px) translateY(' + (Math.sin((travel - x) / 40) * 1) + 'px)';
+    // točkovi se vrte za ukupan pređeni put (auto napred + cesta unazad)
+    var wheelD = cw * 0.165;
+    var rot = (travel - x) / (Math.PI * wheelD) * 360;
     wheels.forEach(function(w){ w.style.setProperty('--rot', rot + 'deg'); });
-    car.style.transform = 'translateY(' + (Math.sin(-x / 40) * 1) + 'px)';
-    var carX = car.getBoundingClientRect().right;
-    steps.forEach(function(s, i){
-      var sr = s.getBoundingClientRect();
-      s.classList.toggle('on', sr.left < carX + 40);
-      var f = Math.min(Math.max((carX + 40 - sr.left) / sr.width, 0), 1);
-      if (bars[i]) bars[i].style.setProperty('--f', f);
+    // crvena ivica linije je uvek ispod auta, kao da je on "boji"
+    var frac = p;
+    var active = Math.max(Math.min(Math.ceil(frac * steps.length) - 1, steps.length - 1), 0);
+    steps.forEach(function(st, i){
+      st.classList.toggle('on', i <= active);
+      if (bars[i]) bars[i].style.setProperty('--f', Math.min(Math.max(frac * steps.length - i, 0), 1));
     });
   }
   window.addEventListener('scroll', function(){ if (!ticking) { ticking = true; requestAnimationFrame(updatePut); } }, {passive:true});
